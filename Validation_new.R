@@ -252,11 +252,11 @@ best_probes <- best_probes %>%
 # best_probes$GeneSymbol
 # best_probes %>% print(n = 1000)
 # best_probes[, c("GeneSymbol", "gene_biotype")] %>% print(n = 500)
-# 
+#
 # # ─── 16. Pathway enrichment on validated mRNAs ──────────────────
 # library(clusterProfiler)
 # library(org.Hs.eg.db)
-# 
+#
 # geneList <- best_probes$GeneSymbol[best_probes$gene_biotype != "lncRNA"]
 # genes_entrez <- bitr(
 #   geneList,
@@ -265,7 +265,7 @@ best_probes <- best_probes %>%
 #   OrgDb    = org.Hs.eg.db
 # )
 # # head(genes_entrez)
-# 
+#
 # go_results <- enrichGO(
 #   gene          = genes_entrez$ENTREZID,
 #   OrgDb         = org.Hs.eg.db,
@@ -276,7 +276,7 @@ best_probes <- best_probes %>%
 #   readable      = TRUE
 # )
 # # head(go_results)
-# 
+#
 # kegg_results <- enrichKEGG(
 #   gene         = genes_entrez$ENTREZID,
 #   organism     = "hsa",
@@ -290,20 +290,45 @@ best_probes <- best_probes %>%
 #   keyType = "ENTREZID"
 # )
 # # head(kegg_results)
-# 
+#
 # # Dotplots
 # enrichplot::dotplot(go_results,   showCategory = 10) + ggtitle("GO Enrichment Analysis")
 # enrichplot::dotplot(kegg_results, showCategory = 10) + ggtitle("KEGG Pathway Analysis")
-# 
+#
 # library(enrichplot)
 # emapplot(pairwise_termsim(go_results))
 # emapplot(pairwise_termsim(kegg_results))
-# 
+#
 # # Final check
 # head(best_probes)
 
 validated_genes = best_probes[,c("GeneSymbol", "gene_biotype", "logFC.discov", "adj.P.Val.discov", "logFC.val", "adj.P.Val.val")]
 validated_genes %>% print(n=10000)
+
+cor.test(
+  validated_genes$logFC.discov,
+  validated_genes$logFC.val,
+  method = "pearson"
+)
+
+
+
+common_hits <- inner_join(
+  gse208194_hits, merged_results,
+  by      = "GeneSymbol",
+  suffix  = c(".discov", ".val")
+)
+
+# Full DEG overlap set (no validation significance filtering)
+full_deg_overlap <- common_hits
+
+cor.test(
+  full_deg_overlap$logFC.discov,
+  full_deg_overlap$logFC.val,
+  method = "pearson"
+)
+
+
 
 write.table(best_probes, "data/best_probes.txt", quote = F, row.names = F, sep = "\t")
 write.table(validated_genes, "data/validated_genes.txt", quote = F, row.names = F, sep = "\t")
