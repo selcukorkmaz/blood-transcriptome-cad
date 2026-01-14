@@ -20,6 +20,8 @@ library(tidyr)         # pivot_longer
 library(yardstick)     # confusion matrix
 library(tune)          # extract_fit_parsnip
 library(patchwork)     # plot composition
+library(cowplot)
+
 
 # 2. Read feature list and expression data -----------------------------
 best_probes   <- fread("data/best_probes.txt", stringsAsFactors = FALSE) %>% as.data.frame()
@@ -345,11 +347,21 @@ coef_mat <- as.matrix(coef_final)
 cat("\nNon-zero coefficients:\n")
 print(coef_mat[coef_mat[, 1] != 0, , drop = FALSE])
 
-# Coefficient Plot ------------------------------------------------------
-coef_path <- as.matrix(glmnet_path$beta)
-lambdas   <- glmnet_path$lambda
 
-coef_df <- as.data.frame(t(coef_path))
+
+
+library(glmnet)
+library(tidyverse)
+library(patchwork)
+
+## =========================================================
+## Panel B: Coefficient paths (glmnet)
+## =========================================================
+
+coef_path <- as.matrix(glmnet_path$beta)   # p x L
+lambdas   <- glmnet_path$lambda            # length L
+
+coef_df <- as.data.frame(t(coef_path))     # L x p
 coef_df$lambda <- lambdas
 
 coef_long <- coef_df %>%
@@ -359,41 +371,123 @@ coef_long <- coef_df %>%
     values_to = "coefficient"
   )
 
-p2 <- ggplot(coef_long, aes(x = log(lambda), y = coefficient, color = feature)) +
-  geom_line() +
-  theme_minimal() +
-  labs(x = "Log(Lambda)", y = "Coefficient") +
-  theme(legend.position = "none",
-        plot.title = element_text(hjust = 0.5, size = 16),
-        axis.title = element_text(size = 14),
-        axis.text = element_text(size = 12))
+## =========================================================
+## Panel A: Cross-validated deviance
+## =========================================================
 
-# Lambda Plot -----------------------------------------------------------
 cv_df <- data.frame(
   lambda = cv_fit$lambda,
-  cvm = cv_fit$cvm,
-  cvsd = cv_fit$cvsd
+  cvm    = cv_fit$cvm,
+  cvsd   = cv_fit$cvsd
 )
 
 best_lambda_mse <- cv_fit$lambda.min
+log_lambda_min  <- log(best_lambda_mse)
+
+## =========================================================
+## Plot A: CV deviance
+## =========================================================
 
 p1 <- ggplot(cv_df, aes(x = log(lambda), y = cvm)) +
-  geom_point(size = 2) +
+  geom_ribbon(
+    aes(ymin = cvm - cvsd, ymax = cvm + cvsd),
+    alpha = 0.2
+  ) +
   geom_line() +
-  geom_errorbar(aes(ymin = cvm - cvsd, ymax = cvm + cvsd), width = 0.05) +
-  geom_vline(xintercept = log(best_lambda_mse), linetype = "dashed", color = "red", size = 1) +
-  annotate("text", x = log(best_lambda_mse), y = max(cv_df$cvm),
-           label = "Best Lambda", hjust = 1.5, vjust = 1.5, size = 3.5, color = "red") +
+  geom_point(size = 2) +
+  geom_vline(
+    xintercept = log_lambda_min,
+    linetype = "dashed",
+    color = "red",
+    linewidth = 1
+  ) +
+  # annotate(
+  #   "text",
+  #   x = log_lambda_min,
+  #   y = min(cv_df$cvm) + y_frac * diff(range(cv_df$cvm)),
+  #   label = expression(lambda[min]),
+  #   hjust = 1.1,
+  #   size = 5,
+  #   color = "red"
+  # ) +
   theme_minimal(base_size = 14) +
-  labs(x = "Log(Lambda)", y = "Mean CV Deviance") +
-  theme(
-    plot.title = element_text(hjust = 0.5, size = 16),
-    axis.title = element_text(size = 14),
-    axis.text = element_text(size = 12)
+  labs(
+    x = "log(λ)",
+    y = "Mean CV Deviance"
   )
 
-p1 + p2 + plot_annotation(tag_levels = "A")
-ggsave("Figures/Figure4.png")
+
+## =========================================================
+## Plot B: Coefficient paths (fixed)
+## =========================================================
+
+p2 <- ggplot(
+  coef_long,
+  aes(x = log(lambda), y = coefficient, group = feature, color = feature)
+) +
+  geom_line(linewidth = 0.8, alpha = 0.9) +
+  geom_vline(
+    xintercept = log_lambda_min,
+    linetype = "dashed",
+    color = "red",
+    linewidth = 1
+  ) +
+  # annotate(
+  #   "text",
+  #   x = log_lambda_min,
+  #   y = min(coef_long$coefficient) +
+  #     y_frac * diff(range(coef_long$coefficient)),
+  #   label = expression(lambda[min]),
+  #   hjust = 1.1,
+  #   size = 5,
+  #   color = "red"
+  # ) +
+  theme_minimal(base_size = 14) +
+  labs(
+    x = "log(λ)",
+    y = "Coefficient"
+  ) +
+  theme(
+    legend.position = "none",
+    axis.title = element_text(size = 14),
+    axis.text  = element_text(size = 12)
+  )
+
+
+## =========================================================
+## Combine & save
+## =========================================================
+
+combined <- p1 + p2 + plot_annotation(tag_levels = "A")
+
+final_plot <- ggdraw(combined) +
+  draw_label(
+    expression(lambda[min]),
+    x = 0.22,      # Panel A dikey çizgiye denk gelen x (deneyerek sabitlenir)
+    y = 0.82,
+    color = "red",
+    size = 14,
+    hjust = 0
+  ) +
+  draw_label(
+    expression(lambda[min]),
+    x = 0.72,      # Panel B dikey çizgiye denk gelen x
+    y = 0.82,
+    color = "red",
+    size = 14,
+    hjust = 0
+  )
+
+ggsave(
+  filename = "Figures/Figure4.png",
+  plot     = final_plot,
+  width    = 10,
+  height   = 5,
+  dpi      = 300
+)
+
+
+
 
 # =====================================================================
 # 12 b.  Bootstrap feature-selection stability (1000 resamples)
@@ -469,18 +563,38 @@ ci_auc <- ci.auc(roc_obj)
 
 png("Figures/Figure5.png", width = 800, height = 600, res = 120)
 
-plot(
-  roc_obj,
-  col = "#1c61b6",
-  legacy.axes = TRUE
+library(pROC)
+
+roc_cal <- roc(
+  response  = y_val,
+  predictor = pred_prob_cal,
+  levels    = c("Control", "CAD"),
+  direction = "<"
 )
 
+auc_cal <- auc(roc_cal)
+ci_cal  <- ci.auc(roc_cal)
+
+plot(
+  roc_cal,
+  col = "blue",
+  lwd = 2,
+  legacy.axes = TRUE,
+  xlab = "1 - Specificity",
+  ylab = "Sensitivity",
+  main = ""
+)
+
+
 text(
-  x = 0.55, y = 0.1,
-  labels = paste0("AUC = ", round(auc_val, 3),
-                  " (95% CI: ", round(ci_auc[1], 3), "-", round(ci_auc[3], 3), ")"),
+  x = 0.6, y = 0.10,
+  labels = sprintf(
+    "AUC = %.3f (95%% CI: %.3f–%.3f)",
+    auc_cal, ci_cal[1], ci_cal[3]
+  ),
   adj = 0
 )
+
 
 dev.off()
 
