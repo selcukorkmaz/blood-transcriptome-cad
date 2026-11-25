@@ -401,15 +401,6 @@ p1 <- ggplot(cv_df, aes(x = log(lambda), y = cvm)) +
     color = "red",
     linewidth = 1
   ) +
-  # annotate(
-  #   "text",
-  #   x = log_lambda_min,
-  #   y = min(cv_df$cvm) + y_frac * diff(range(cv_df$cvm)),
-  #   label = expression(lambda[min]),
-  #   hjust = 1.1,
-  #   size = 5,
-  #   color = "red"
-  # ) +
   theme_minimal(base_size = 14) +
   labs(
     x = "log(λ)",
@@ -422,7 +413,7 @@ p1 <- ggplot(cv_df, aes(x = log(lambda), y = cvm)) +
 ## =========================================================
 
 p2 <- ggplot(
-  coef_long,
+  ,
   aes(x = log(lambda), y = coefficient, group = feature, color = feature)
 ) +
   geom_line(linewidth = 0.8, alpha = 0.9) +
@@ -432,16 +423,6 @@ p2 <- ggplot(
     color = "red",
     linewidth = 1
   ) +
-  # annotate(
-  #   "text",
-  #   x = log_lambda_min,
-  #   y = min(coef_long$coefficient) +
-  #     y_frac * diff(range(coef_long$coefficient)),
-  #   label = expression(lambda[min]),
-  #   hjust = 1.1,
-  #   size = 5,
-  #   color = "red"
-  # ) +
   theme_minimal(base_size = 14) +
   labs(
     x = "log(λ)",
